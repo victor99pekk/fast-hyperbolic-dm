@@ -1,0 +1,30 @@
+# FB15k-237 Training Configuration
+# =================================
+# Hyperparameters for training the DM-KG model and baselines on FB15k-237.
+
+# --- Model ---
+high_dim: 256         # Hyperbolic embedding dimension (d)
+low_dim: 32           # DM projected slice dimension (k)
+curvature: 1.0        # Poincare ball curvature constant c
+learnable_projections: true  # Learn DM projection matrices
+
+# --- Training ---
+batch_size: 1024
+num_neg: 50           # Negative samples per positive triple
+epochs: 200
+lr: 0.001
+margin: 1.0           # Hinge loss margin
+grad_clip: 1.0        # Gradient clipping norm
+eval_every: 50        # Evaluate validation MRR every N epochs (50 to reduce eval overhead)
+patience: 20          # Early stopping patience (in eval_every units)
+
+# --- Paths ---
+data_dir: data/fb15k237
+log_dir: logs
+checkpoint_dir: checkpoints
+
+# --- Device ---
+device: cpu           # Change to "cuda" for GPU
+
+# --- Dataset ---
+dataset: fb15k237
