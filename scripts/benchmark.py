@@ -20,7 +20,7 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.data.dataset import load_fb15k237
-from src.models import DM_KG_Model, EuclideanTransE, HyperbolicTransE
+from src.models import DM_KG_Model, EuclideanTransE, HyperbolicTransE, RotatE, RotL
 from src.benchmarking.profiler import compare_models
 
 
@@ -58,9 +58,6 @@ def main():
     config = yaml.safe_load(open(config_path))
 
     device = args.device or config.get("device", "cpu")
-    if device == "cpu" and torch.cuda.is_available() and not args.device:
-        device = "cuda"
-        print(f"GPU detected — auto-switching to {device}")
     print(f"Device: {device}")
 
     # Load dataset
@@ -89,6 +86,17 @@ def main():
             dim=high_dim,
         ),
         "Hyperbolic TransE": HyperbolicTransE(
+            num_entities=dataset.num_entities,
+            num_relations=dataset.num_relations,
+            dim=high_dim,
+            curvature=curvature,
+        ),
+        "RotatE": RotatE(
+            num_entities=dataset.num_entities,
+            num_relations=dataset.num_relations,
+            dim=high_dim,
+        ),
+        "RotL": RotL(
             num_entities=dataset.num_entities,
             num_relations=dataset.num_relations,
             dim=high_dim,
@@ -130,6 +138,8 @@ def main():
     dm_result = next(r for r in results if r["model"] == "DM-KG")
     hyp_result = next(r for r in results if r["model"] == "Hyperbolic TransE")
     euc_result = next(r for r in results if r["model"] == "Euclidean TransE")
+    rot_result = next(r for r in results if r["model"] == "RotatE")
+    rotl_result = next(r for r in results if r["model"] == "RotL")
 
     if hyp_result["forward_mean_ms"] > 0:
         fwd_speedup = hyp_result["forward_mean_ms"] / dm_result["forward_mean_ms"]
@@ -138,6 +148,14 @@ def main():
     if euc_result["forward_mean_ms"] > 0:
         fwd_vs_euc = dm_result["forward_mean_ms"] / euc_result["forward_mean_ms"]
         print(f"DM-KG forward slowdown vs Euclidean: {fwd_vs_euc:.2f}x")
+
+    if rot_result["forward_mean_ms"] > 0:
+        fwd_vs_rot = dm_result["forward_mean_ms"] / rot_result["forward_mean_ms"]
+        print(f"DM-KG forward slowdown vs RotatE: {fwd_vs_rot:.2f}x")
+
+    if rotl_result["forward_mean_ms"] > 0:
+        fwd_vs_rotl = dm_result["forward_mean_ms"] / rotl_result["forward_mean_ms"]
+        print(f"DM-KG forward slowdown vs RotL: {fwd_vs_rotl:.2f}x")
 
     # Save results
     output_path = os.path.join(

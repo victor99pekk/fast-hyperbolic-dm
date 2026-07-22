@@ -19,7 +19,7 @@ from src.utils.hyperbolic import (
     poincare_clip,
 )
 from src.layers import DMRelationalLayer
-from src.models import DM_KG_Model, EuclideanTransE, HyperbolicTransE
+from src.models import DM_KG_Model, EuclideanTransE, HyperbolicTransE, RotatE, RotL
 from src.data.negative_sampling import NegativeSampler
 from src.training.losses import hinge_loss
 from src.utils.metrics import compute_mrr, compute_hits_at_k
@@ -53,7 +53,7 @@ class TestHyperbolicMath:
         b = poincare_clip(torch.randn(3, 8) * 0.5)
         d1 = hyperbolic_distance(a, b)
         d2 = hyperbolic_distance(b, a)
-        assert (d1 - d2).abs().max() < 1e-2
+        assert (d1 - d2).abs().max() < 1e-5
 
     def test_self_distance(self):
         """Distance to self should be (near) zero."""
@@ -171,6 +171,51 @@ class TestModels:
         model = HyperbolicTransE(self.NUM_E, self.NUM_R, dim=16)
         emb = model._get_entity(batch[0])
         assert emb.norm(dim=-1).max() < 1.0
+
+    def test_rotate_model_forward(self, batch):
+        """RotatE forward should produce correct shape and no NaN."""
+        model = RotatE(self.NUM_E, self.NUM_R, dim=self.HIGH_D)
+        scores = model(*batch)
+        assert scores.shape == (self.B,)
+        assert not torch.isnan(scores).any()
+
+    def test_rotate_model_gradient_flow(self, batch):
+        """RotatE gradients should flow to entity embeddings."""
+        model = RotatE(self.NUM_E, self.NUM_R, dim=self.HIGH_D)
+        scores = model(*batch)
+        loss = scores.mean()
+        loss.backward()
+        assert model.entity_embeddings.grad is not None
+        assert not torch.isnan(model.entity_embeddings.grad).any()
+
+    def test_rotate_embedding_even_dim(self):
+        """RotatE should require even embedding dimension."""
+        with pytest.raises(AssertionError):
+            RotatE(10, 5, dim=255)
+
+    def test_rotl_model_forward(self, batch):
+        """RotL forward should produce correct shape and no NaN."""
+        model = RotL(self.NUM_E, self.NUM_R, dim=self.HIGH_D)
+        scores = model(*batch)
+        assert scores.shape == (self.B,)
+        assert not torch.isnan(scores).any()
+
+    def test_rotl_model_gradient_flow(self, batch):
+        """RotL gradients should flow to entity embeddings."""
+        model = RotL(self.NUM_E, self.NUM_R, dim=self.HIGH_D)
+        scores = model(*batch)
+        loss = scores.mean()
+        loss.backward()
+        assert model.entity_embeddings.grad is not None
+        assert not torch.isnan(model.entity_embeddings.grad).any()
+
+    def test_rotl_hyperboloid_valid(self, batch):
+        """RotL entities should map to valid hyperboloid points (x_0 > 0)."""
+        model = RotL(self.NUM_E, self.NUM_R, dim=16)
+        s, r, o = batch
+        sub_spatial = model.entity_embeddings[s]
+        hyp_point = model._to_hyperboloid(sub_spatial)
+        assert (hyp_point[:, 0] > 0).all(), "Time coordinate must be positive"
 
 
 # ============================================================

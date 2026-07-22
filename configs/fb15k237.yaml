@@ -15,7 +15,7 @@ epochs: 200
 lr: 0.001
 margin: 1.0           # Hinge loss margin
 grad_clip: 1.0        # Gradient clipping norm
-eval_every: 50        # Evaluate validation MRR every N epochs (50 to reduce eval overhead)
+eval_every: 10        # Evaluate validation MRR every N epochs
 patience: 20          # Early stopping patience (in eval_every units)
 
 # --- Paths ---

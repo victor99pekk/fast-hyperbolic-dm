@@ -43,7 +43,11 @@ def compute_mrr(ranks: List[float]) -> float:
     """Compute Mean Reciprocal Rank."""
     if not ranks:
         return 0.0
-    return sum(1.0 / r for r in ranks) / len(ranks)
+    # Filter out invalid ranks (0 or negative) and clip to min 1
+    valid_ranks = [max(1.0, r) for r in ranks if r > 0]
+    if not valid_ranks:
+        return 0.0
+    return sum(1.0 / r for r in valid_ranks) / len(valid_ranks)
 
 
 def compute_hits_at_k(ranks: List[float], k: int) -> float:

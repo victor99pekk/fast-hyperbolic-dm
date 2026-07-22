@@ -57,6 +57,7 @@ class KGTrainer:
         self.num_entities = num_entities
         self.config = config
         self.device = device
+        self.model_name = type(model).__name__
 
         # Extract config values with defaults
         self.batch_size = config.get("batch_size", 1024)
@@ -95,6 +96,13 @@ class KGTrainer:
         self.best_mrr = 0.0
         self.best_epoch = 0
         self.patience_counter = 0
+        self.best_metrics = {}
+
+        # Timing state
+        self.total_train_time_s = 0.0
+        self.epoch_times_s = []
+        self.avg_forward_time_ms = 0.0
+        self._inference_time_ms = 0.0
 
     def train_epoch(self) -> float:
         """Train one epoch. Returns average loss."""
@@ -164,6 +172,14 @@ class KGTrainer:
         avg_loss = total_loss / max(num_batches, 1)
         epoch_time = time.time() - epoch_start
 
+        # Accumulate timing
+        self.total_train_time_s += epoch_time
+        self.epoch_times_s.append(epoch_time)
+
+        # Measure forward pass time on first epoch using CUDA-safe events
+        if self.current_epoch == 1 and num_batches > 0:
+            self._benchmark_forward_pass(subjects, relations, objects)
+
         # Log to TensorBoard
         if self.writer is not None:
             self.writer.add_scalar("train/loss", avg_loss, self.current_epoch)
@@ -231,6 +247,7 @@ class KGTrainer:
                     self.best_epoch = epoch
                     self.patience_counter = 0
                     self._save_checkpoint()
+                    self.best_metrics = metrics
                     print(f"  -> New best MRR: {mrr:.4f} (saved)")
                 else:
                     self.patience_counter += 1
@@ -254,10 +271,102 @@ class KGTrainer:
         # Load best model
         self._load_checkpoint()
 
+        # Save results to JSON
+        self._save_results()
+
         return {
             "best_mrr": self.best_mrr,
             "best_epoch": self.best_epoch,
         }
+
+    def _benchmark_forward_pass(
+        self,
+        subjects: torch.Tensor,
+        relations: torch.Tensor,
+        objects: torch.Tensor,
+        num_warmup: int = 3,
+        num_repeats: int = 20,
+    ) -> None:
+        """
+        Measure forward pass time using CUDA events (GPU) or time.perf_counter (CPU).
+        Stores result in self.avg_forward_time_ms.
+        """
+        self.model.eval()
+
+        s = subjects[:min(len(subjects), 256)]
+        r = relations[:min(len(relations), 256)]
+        o = objects[:min(len(objects), 256)]
+
+        # Warmup
+        with torch.no_grad():
+            for _ in range(num_warmup):
+                _ = self.model.score_triples(s, r, o)
+
+        # Measure
+        if self.device.startswith("cuda"):
+            starter = torch.cuda.Event(enable_timing=True)
+            ender = torch.cuda.Event(enable_timing=True)
+            timings = []
+            with torch.no_grad():
+                for _ in range(num_repeats):
+                    starter.record()
+                    _ = self.model.score_triples(s, r, o)
+                    ender.record()
+                    torch.cuda.synchronize()
+                    timings.append(starter.elapsed_time(ender))
+            self.avg_forward_time_ms = sum(timings) / len(timings)
+        else:
+            import time as _time
+            timings = []
+            with torch.no_grad():
+                for _ in range(num_repeats):
+                    t0 = _time.perf_counter()
+                    _ = self.model.score_triples(s, r, o)
+                    t1 = _time.perf_counter()
+                    timings.append((t1 - t0) * 1000.0)
+            self.avg_forward_time_ms = sum(timings) / len(timings)
+
+        # Estimate inference time per 1K triples
+        batch_size = s.shape[0]
+        self._inference_time_ms = (self.avg_forward_time_ms / batch_size) * 1000
+
+        self.model.train()
+
+    def _save_results(self) -> None:
+        """Save best training results to a JSON file."""
+        import json
+        from datetime import datetime
+
+        # Compute timing stats
+        avg_epoch_s = (
+            sum(self.epoch_times_s) / len(self.epoch_times_s)
+            if self.epoch_times_s else 0.0
+        )
+
+        results = {
+            "model": self.model_name,
+            "device": self.device,
+            "num_params": sum(p.numel() for p in self.model.parameters()),
+            "best_epoch": self.best_epoch,
+            "best_mrr": self.best_mrr,
+            "timestamp": datetime.now().isoformat(),
+            "timing": {
+                "total_train_time_s": round(self.total_train_time_s, 2),
+                "avg_epoch_time_s": round(avg_epoch_s, 3),
+                "num_epochs_timed": len(self.epoch_times_s),
+                "forward_pass_ms": round(self.avg_forward_time_ms, 3),
+                "inference_ms_per_1k": round(self._inference_time_ms, 3),
+            },
+        }
+        if self.best_metrics:
+            results["metrics"] = {
+                k: float(v) for k, v in self.best_metrics.items()
+            }
+
+        path = os.path.join(self.checkpoint_dir, "results.json")
+        with open(path, "w") as f:
+            json.dump(results, f, indent=2)
+        print(f"Results saved to: {path}")
 
     def _save_checkpoint(self) -> None:
         """Save model checkpoint."""

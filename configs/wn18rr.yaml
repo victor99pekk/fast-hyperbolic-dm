@@ -1,0 +1,31 @@
+# WN18RR Training Configuration
+# ==============================
+# WN18RR is WordNet-based, highly hierarchical — ideal for hyperbolic models.
+# 40,943 entities, 11 relations, 86,835 train / 3,034 valid / 3,134 test.
+
+# --- Model ---
+high_dim: 256
+low_dim: 32
+curvature: 1.0
+learnable_projections: true
+
+# --- Training ---
+batch_size: 1024
+num_neg: 50
+epochs: 200
+lr: 0.001
+margin: 1.0
+grad_clip: 1.0
+eval_every: 50
+patience: 20
+
+# --- Paths ---
+data_dir: data
+log_dir: logs
+checkpoint_dir: checkpoints
+
+# --- Device (auto-detected if GPU available) ---
+device: cpu
+
+# --- Dataset ---
+dataset: wn18rr
