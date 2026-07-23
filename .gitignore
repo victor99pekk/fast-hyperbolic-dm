@@ -26,7 +26,8 @@ uv.lock
 Thumbs.db
 
 # Project outputs (generated, not source)
-data/
+/data/                  # root data/ — downloaded datasets
+!/src/data/             # src/data/ is source code, NOT ignored
 checkpoints/
 logs/
 results/
