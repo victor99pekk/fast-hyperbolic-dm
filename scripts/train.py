@@ -44,12 +44,28 @@ MODEL_REGISTRY = {
 QUICK_CONFIG = {
     "epochs": 100,
     "eval_every": 25,
+    "patience": 2,
+    "orthogonalize_every": 0,
     "batch_size": 256,
     "num_neg": 10,
     "high_dim": 64,
     "low_dim": 16,
     "num_train_triples": 5000,
     "num_valid_triples": 500,
+}
+
+# Medium mode — 4× data, double dims, for diagnostic scaling tests
+MEDIUM_CONFIG = {
+    "epochs": 100,
+    "eval_every": 25,
+    "patience": 2,
+    "orthogonalize_every": 0,
+    "batch_size": 512,
+    "num_neg": 20,
+    "high_dim": 128,
+    "low_dim": 32,
+    "num_train_triples": 20000,
+    "num_valid_triples": 1000,
 }
 
 
@@ -79,7 +95,12 @@ def parse_args():
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Quick smoke test: small data, 5 epochs, CPU (~2 min)",
+        help="Quick smoke test: 5K triples, dim=64, CPU",
+    )
+    parser.add_argument(
+        "--medium",
+        action="store_true",
+        help="Medium diagnostic run: 20K triples, dim=128, CPU",
     )
     parser.add_argument(
         "--dataset",
@@ -109,9 +130,8 @@ def build_model(model_name: str, dataset, config: dict) -> torch.nn.Module:
             high_dim=config.get("high_dim", 256),
             low_dim=config.get("low_dim", 32),
             curvature=config.get("curvature", 1.0),
-            learnable_projections=config.get(
-                "learnable_projections", True
-            ),
+            learnable_projections=config.get("learnable_projections", True),
+            orthogonal=config.get("orthogonal", False),
         )
     elif model_name == "euclidean":
         return model_class(
@@ -205,9 +225,14 @@ def main():
     print(f"Loading config from: {config_path}")
     config = load_config(config_path)
 
-    # ── Quick mode: override config for fast smoke test ──
-    if args.quick:
-        print("\n⚡ QUICK MODE — small data, 5 epochs, CPU only")
+    # ── Quick/Medium mode: override config ──
+    if args.medium:
+        print("\n🔬 MEDIUM MODE — 20K triples, dim=128/32, CPU")
+        for key, value in MEDIUM_CONFIG.items():
+            config[key] = value
+        device = "cpu"
+    elif args.quick:
+        print("\n⚡ QUICK MODE — 5K triples, dim=64/16, CPU")
         for key, value in QUICK_CONFIG.items():
             config[key] = value
         device = "cpu"
@@ -228,8 +253,8 @@ def main():
     print(f"Loading {dataset_key} from: {data_dir}")
     dataset = load_dataset(dataset_key, data_dir)
 
-    # ── Quick mode: subset the data ──
-    if args.quick:
+    # ── Quick/Medium mode: subset the data ──
+    if args.quick or args.medium:
         n_train = min(config["num_train_triples"], dataset.train_triples.shape[0])
         n_valid = min(config["num_valid_triples"], dataset.valid_triples.shape[0])
         dataset.train_triples = dataset.train_triples[:n_train]
@@ -264,9 +289,8 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {n_params:,}")
 
-    # Build true triples set for filtered evaluation
-    # In quick mode, use only the remapped train + valid triples
-    if args.quick:
+    # Build true triples set — in quick/medium mode, use remapped data
+    if args.quick or args.medium:
         all_true_triples = build_true_triples_set(
             dataset.train_triples,
             dataset.valid_triples,
@@ -304,8 +328,8 @@ def main():
     # ── Auto-summary: print results + speedup ──
     _auto_summary(dataset_key)
 
-    # Final test evaluation (skip in quick mode — too slow)
-    if not args.quick:
+    # Final test evaluation (skip in quick/medium mode — too slow)
+    if not args.quick and not args.medium:
         print(f"\nEvaluating on test set...")
         from src.utils.metrics import evaluate_model
 
@@ -323,7 +347,8 @@ def main():
         print(f"Test Hits@3: {test_metrics['hits@3']:.4f}")
         print(f"Test Hits@10: {test_metrics['hits@10']:.4f}")
     else:
-        print("\n⚡ Quick mode — skipping test evaluation.")
+        mode = "🔬 Medium" if args.medium else "⚡ Quick"
+        print(f"\n{mode} mode — skipping test evaluation.")
 
 
 if __name__ == "__main__":

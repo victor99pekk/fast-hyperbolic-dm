@@ -43,6 +43,7 @@ class DM_KG_Model(nn.Module):
         low_dim: int = 32,
         curvature: float = 1.0,
         learnable_projections: bool = True,
+        orthogonal: bool = True,
     ):
         super().__init__()
         self.num_entities = num_entities
@@ -63,6 +64,7 @@ class DM_KG_Model(nn.Module):
             high_dim=high_dim,
             low_dim=low_dim,
             learnable=learnable_projections,
+            orthogonal=orthogonal,
         )
 
     def _get_entity(self, ids: torch.Tensor) -> torch.Tensor:

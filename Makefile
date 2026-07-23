@@ -29,6 +29,18 @@ quick-all-wn18rr:  ## Quick test all models on WN18RR
 	uv run python scripts/train.py --model dm --config configs/wn18rr.yaml --quick --dataset wn18rr
 	uv run python scripts/train.py --model hyperbolic --config configs/wn18rr.yaml --quick --dataset wn18rr
 
+# ── Medium diagnostic runs (CPU, 20K triples, dim=128) ──
+medium-dm:  ## Medium diagnostic DM-KG (FB15k-237)
+	uv run python scripts/train.py --model dm --config $(CONFIG) --medium
+
+medium-wn18rr:  ## Medium diagnostic DM-KG (WN18RR)
+	uv run python scripts/train.py --model dm --config configs/wn18rr.yaml --dataset wn18rr --medium
+
+medium-all-wn18rr:  ## Medium diagnostic all models (WN18RR)
+	uv run python scripts/train.py --model euclidean --config configs/wn18rr.yaml --dataset wn18rr --medium
+	uv run python scripts/train.py --model dm --config configs/wn18rr.yaml --dataset wn18rr --medium
+	uv run python scripts/train.py --model hyperbolic --config configs/wn18rr.yaml --dataset wn18rr --medium
+
 # ── Full training (auto-detects GPU) ───────────────────
 train-dm:  ## Train DM-KG (full)
 	uv run python scripts/train.py --model dm --config $(CONFIG)
@@ -81,8 +93,12 @@ clean-all: clean  ## Also remove dataset and venv
 	rm -rf data/ .venv/
 
 # ── Setup ───────────────────────────────────────────────
-setup:  ## Install dependencies
+setup:  ## Install dependencies (CPU torch)
 	uv sync --group dev
+
+setup-gpu:  ## Install dependencies with CUDA torch (run on GPU VM)
+	uv sync --group dev
+	uv pip install torch --reinstall --index-url https://download.pytorch.org/whl/cu121
 
 notebook:  ## Launch Jupyter notebook
 	uv run jupyter notebook notebooks/analysis.ipynb

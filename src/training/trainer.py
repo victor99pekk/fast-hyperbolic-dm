@@ -104,6 +104,34 @@ class KGTrainer:
         self.avg_forward_time_ms = 0.0
         self._inference_time_ms = 0.0
 
+        # CSV logging
+        self._csv_path = os.path.join(self.checkpoint_dir, "training_log.csv")
+        self._csv_file = None
+
+        # Orthogonalization interval (0 = disabled)
+        self._ortho_every = config.get("orthogonalize_every", 10)
+
+    def _init_csv(self) -> None:
+        """Create CSV log file with headers."""
+        self._csv_file = open(self._csv_path, "w")
+        self._csv_file.write("epoch,loss,mrr,hits@1,hits@10,epoch_time_s\n")
+
+    def _log_csv(self, loss: float, metrics: dict | None = None, epoch_time_s: float = 0.0) -> None:
+        """Append a row to the CSV log."""
+        if self._csv_file is None:
+            return
+        mrr = metrics.get("mrr", "") if metrics else ""
+        h1 = metrics.get("hits@1", "") if metrics else ""
+        h10 = metrics.get("hits@10", "") if metrics else ""
+        self._csv_file.write(f"{self.current_epoch},{loss:.6f},{mrr},{h1},{h10},{epoch_time_s:.3f}\n")
+        self._csv_file.flush()
+
+    def _close_csv(self) -> None:
+        """Close the CSV log file."""
+        if self._csv_file:
+            self._csv_file.close()
+            self._csv_file = None
+
     def train_epoch(self) -> float:
         """Train one epoch. Returns average loss."""
         self.model.train()
@@ -215,17 +243,30 @@ class KGTrainer:
             f"Params: {sum(p.numel() for p in self.model.parameters()):,}"
         )
 
+        self._init_csv()
+
         for epoch in range(1, self.epochs + 1):
             self.current_epoch = epoch
 
             # Train
             avg_loss = self.train_epoch()
+            epoch_time = self.epoch_times_s[-1] if self.epoch_times_s else 0
+
+            # Periodically enforce orthogonality on DM projection matrices
+            if self._ortho_every > 0 and epoch % self._ortho_every == 0:
+                if hasattr(self.model, "dm_layer") and hasattr(self.model.dm_layer, "orthogonalize_"):
+                    self.model.dm_layer.orthogonalize_()
+
+            self._log_csv(avg_loss, epoch_time_s=epoch_time)
             print(f"Epoch {epoch}/{self.epochs} - Loss: {avg_loss:.4f}")
 
             # Validate
             if epoch % self.eval_every == 0 or epoch == self.epochs:
                 metrics = self.evaluate()
                 mrr = metrics["mrr"]
+
+                # Log CSV (update row with metrics)
+                self._log_csv(avg_loss, metrics=metrics, epoch_time_s=epoch_time)
 
                 # Log metrics
                 if self.writer is not None:
@@ -267,6 +308,8 @@ class KGTrainer:
 
         if self.writer is not None:
             self.writer.close()
+
+        self._close_csv()
 
         # Load best model
         self._load_checkpoint()

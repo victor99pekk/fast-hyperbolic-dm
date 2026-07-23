@@ -55,12 +55,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-# Pin to macOS ARM64 to avoid resolving wheels for other platforms
-required-environments = [
-    "sys_platform == 'darwin' and platform_machine == 'arm64'",
-]
 
-# Use PyTorch's own index for better platform wheel coverage
+# Use PyTorch's own index for platform coverage; set explicit=false on GPU VMs
 [[tool.uv.index]]
 name = "pytorch"
 url = "https://download.pytorch.org/whl/cpu"
@@ -68,6 +64,10 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
+
+# Override: on GPU machines, run:
+#   uv pip install torch --index-url https://download.pytorch.org/whl/cu121
+# or remove the [tool.uv.sources] block above temporarily.
 
 [dependency-groups]
 dev = [
