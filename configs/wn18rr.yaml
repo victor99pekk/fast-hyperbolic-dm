@@ -12,12 +12,12 @@ learnable_projections: true
 # --- Training ---
 batch_size: 1024
 num_neg: 50
-epochs: 200
+epochs: 100
 lr: 0.001
 margin: 1.0
 grad_clip: 1.0
 eval_every: 50
-patience: 20
+patience: 7
 
 # --- Paths ---
 data_dir: data
