@@ -12,7 +12,7 @@ learnable_projections: true
 # --- Training ---
 batch_size: 1024
 num_neg: 50
-epochs: 100
+epochs: 20
 lr: 0.001
 margin: 1.0
 grad_clip: 1.0
