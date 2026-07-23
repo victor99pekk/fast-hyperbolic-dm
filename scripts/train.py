@@ -25,8 +25,10 @@ import yaml
 
 import torch
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Add project root to path — works whether installed editable or run from scripts/
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from src.data.dataset import load_dataset
 from src.data.negative_sampling import build_true_triples_set

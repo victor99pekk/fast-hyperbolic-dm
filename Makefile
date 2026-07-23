@@ -93,12 +93,8 @@ clean-all: clean  ## Also remove dataset and venv
 	rm -rf data/ .venv/
 
 # ── Setup ───────────────────────────────────────────────
-setup:  ## Install dependencies (CPU torch)
+setup:  ## Install dependencies (auto-detects CPU/GPU)
 	uv sync --group dev
-
-setup-gpu:  ## Install dependencies with CUDA torch (run on GPU VM)
-	uv sync --group dev
-	uv pip install torch --reinstall --index-url https://download.pytorch.org/whl/cu121
 
 notebook:  ## Launch Jupyter notebook
 	uv run jupyter notebook notebooks/analysis.ipynb

@@ -17,7 +17,10 @@ import yaml
 
 import torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Add project root to path
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from src.data.dataset import load_fb15k237
 from src.models import DM_KG_Model, EuclideanTransE, HyperbolicTransE, RotatE, RotL
