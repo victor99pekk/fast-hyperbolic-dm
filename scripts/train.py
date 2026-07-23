@@ -22,26 +22,9 @@ import argparse
 import os
 import sys
 
-# ── Robust path setup: add project root to sys.path ──
-# This must happen before any local imports.
-# We try multiple strategies to find the project root.
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_project_root = os.path.dirname(_script_dir)  # parent of scripts/
-
-# Strategy 1: explicit check — does src/ exist next to scripts/?
-_src_candidates = [
-    os.path.join(_project_root, "src"),
-    os.path.join(os.getcwd(), "src"),
-]
-for _cand in _src_candidates:
-    if os.path.isdir(_cand):
-        _parent = os.path.dirname(_cand)
-        if _parent not in sys.path:
-            sys.path.insert(0, _parent)
-        break
-else:
-    # Last resort: assume CWD is project root
-    sys.path.insert(0, os.getcwd())
+# ── Path setup: ensure project root (parent of scripts/) is on sys.path ──
+_sys_path_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _sys_path_root)
 
 import yaml
 import torch
