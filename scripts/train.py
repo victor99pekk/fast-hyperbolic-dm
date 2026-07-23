@@ -21,14 +21,30 @@ Models:
 import argparse
 import os
 import sys
+
+# ── Robust path setup: add project root to sys.path ──
+# This must happen before any local imports.
+# We try multiple strategies to find the project root.
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_script_dir)  # parent of scripts/
+
+# Strategy 1: explicit check — does src/ exist next to scripts/?
+_src_candidates = [
+    os.path.join(_project_root, "src"),
+    os.path.join(os.getcwd(), "src"),
+]
+for _cand in _src_candidates:
+    if os.path.isdir(_cand):
+        _parent = os.path.dirname(_cand)
+        if _parent not in sys.path:
+            sys.path.insert(0, _parent)
+        break
+else:
+    # Last resort: assume CWD is project root
+    sys.path.insert(0, os.getcwd())
+
 import yaml
-
 import torch
-
-# Add project root to path — works whether installed editable or run from scripts/
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
 
 from src.data.dataset import load_dataset
 from src.data.negative_sampling import build_true_triples_set
